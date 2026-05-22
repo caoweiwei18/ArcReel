@@ -817,6 +817,13 @@ async def update_scene(name: str, scene_id: str, req: UpdateSceneRequest, _user:
         return await asyncio.to_thread(_sync)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=_t("script_not_found", name=req.script_file))
+    except ValueError as exc:
+        # 结构校验失败、集号错配、非法文件名都抛 ValueError（ScriptStructureValidationError
+        # 即其子类）：统一转 422 客户端错误，避免落到下面的 500 兜底。
+        raise HTTPException(
+            status_code=422,
+            detail=_t("script_validation_failed", details=str(exc)),
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -888,6 +895,13 @@ async def update_segment(name: str, segment_id: str, req: UpdateSegmentRequest, 
         return await asyncio.to_thread(_sync)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=_t("script_not_found", name=req.script_file))
+    except ValueError as exc:
+        # 结构校验失败、集号错配、非法文件名都抛 ValueError（ScriptStructureValidationError
+        # 即其子类）：统一转 422 客户端错误，避免落到下面的 500 兜底。
+        raise HTTPException(
+            status_code=422,
+            detail=_t("script_validation_failed", details=str(exc)),
+        )
     except HTTPException:
         raise
     except Exception as e:
