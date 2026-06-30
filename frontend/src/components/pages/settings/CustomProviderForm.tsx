@@ -12,7 +12,13 @@ import type {
   DiscoveredModel,
   EndpointKey,
 } from "@/types";
-import { priceLabel, urlPreviewFor, toggleDefaultReducer, type DiscoveryFormat } from "./customProviderHelpers";
+import {
+  priceLabel,
+  urlPreviewFor,
+  toggleDefaultReducer,
+  mergeDiscoveredModels,
+  type DiscoveryFormat,
+} from "./customProviderHelpers";
 import { EndpointSelect } from "./EndpointSelect";
 import { ResolutionPicker } from "@/components/shared/ResolutionPicker";
 import { IMAGE_STANDARD_RESOLUTIONS, VIDEO_STANDARD_RESOLUTIONS } from "@/utils/provider-models";
@@ -320,24 +326,12 @@ export function CustomProviderForm({ existing, onSaved, onCancel }: CustomProvid
         ? await API.discoverModelsForProvider(existing.id)
         : await API.discoverModels({ discovery_format: discoveryFormat, base_url: baseUrl, api_key: apiKey });
       const discovered = res.models.map(discoveredToRow);
-      setModels((prev) => {
-        const existingIds = new Map(prev.map((r) => [r.model_id, r]));
-        const merged: ModelRow[] = [];
-        for (const d of discovered) {
-          const existing = existingIds.get(d.model_id);
-          if (existing) {
-            merged.push(existing);
-            existingIds.delete(d.model_id);
-          } else {
-            merged.push(d);
-          }
-        }
-        // Keep manually added models that weren't in the discovery response
-        for (const r of existingIds.values()) {
-          merged.push(r);
-        }
-        return merged;
-      });
+      // 用 getState 读最新 catalog 映射，而非 handleDiscover 闭包捕获的渲染期值：catalog 在
+      // mount 时异步拉取，若用户在其就绪前点「获取模型」，闭包里仍是空 map，合并会跳过默认
+      // 消解，保存时可能 default_model_conflict。
+      const { endpointToMediaType: mediaMap, endpointToImageCapabilities: capsMap } =
+        useEndpointCatalogStore.getState();
+      setModels((prev) => mergeDiscoveredModels(prev, discovered, mediaMap, capsMap));
       setModelFilter("");
     } catch (e) {
       showError(errMsg(e, t("fetch_models_failed")));
